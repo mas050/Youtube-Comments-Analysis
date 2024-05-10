@@ -73,64 +73,81 @@ def process_md_file(filename):
 def main():
     st.title("Sentiment Analysis Tool") 
 
-    input_filename = st.text_input("Enter the name of your .md comments file: ")
+    uploaded_file = st.file_uploader("Choose a .md file", type="md")
     output_filename = st.text_input("Enter the desired output filename: ", "sentiment_analysis.md")
 
     max_displayed = st.text_input("What is the maximum number of comments with their classification do you want displayed as a sample of this analysis: ", "5")
 
     if st.button("Run Analysis"): 
-        with st.spinner("Analyzing sentiments..."):
-            blocks = process_md_file(input_filename)
+        if uploaded_file is not None:
+            with st.spinner("Analyzing sentiments..."):
+                file_content = uploaded_file.getvalue().decode("utf-8")
+                blocks = process_md_file(file_content)
+    
+                nb_positive = 0
+                nb_negative = 0
+                nb_neutral = 0
+                nb_total_comments = 0
+                results = []  # Store results to display later
+    
+                progress_bar = st.progress(0)
 
-            nb_positive = 0
-            nb_negative = 0
-            nb_neutral = 0
-            nb_total_comments = 0
-            results = []  # Store results to display later
+                # Create output for download
+                output_content = "# Sentiment Analysis Results\n\n" 
 
-            progress_bar = st.progress(0)
-            for i, block in enumerate(blocks):
-                sentiment = classify_sentiment(block)
+                for i, block in enumerate(blocks):
+                    sentiment = classify_sentiment(block)
+                    output_content += f"**Comment #{i+1}:**\n{block}\n**Sentiment:** {sentiment}\n\n"
+    
+                    if i+1 <= int(max_displayed):
+                        results.append(f"Comment #{i+1}:\n\n {block} \n\n --> Sentiment: {sentiment}")  # Store for summary
+    
+                    if sentiment.lower() == "positive":
+                        nb_positive += 1
+                    elif sentiment.lower() == "negative":
+                        nb_negative += 1
+                    else:
+                        nb_neutral += 1
+    
+                    progress_bar.progress((i + 1) / len(blocks))
+    
+                NPS_Score = round((nb_positive - nb_negative)/(nb_positive + nb_negative + nb_neutral) * 100)
+    
+                nb_total_comments=nb_positive+nb_negative+nb_neutral
 
-                if i+1 <= int(max_displayed):
-                    results.append(f"Comment #{i+1}:\n\n {block} \n\n --> Sentiment: {sentiment}")  # Store for summary
+                # Add summary results
+                output_content += f"**Results Summary:**\n* Total Comments: {nb_total_comments}\n"
+                output_content += f"* Positive: {nb_positive}\n* Negative: {nb_negative}\n* Neutral: {nb_neutral}\n"
+                output_content += f"* NPS Score: {NPS_Score}\n\n"
 
-                if sentiment.lower() == "positive":
-                    nb_positive += 1
-                elif sentiment.lower() == "negative":
-                    nb_negative += 1
-                else:
-                    nb_neutral += 1
+    
+                # Display summary FIRST
+                st.success("Analysis complete!")
+                st.write(f"Results Summary: \n\n We had a total of {nb_total_comments} comments in the original file --> {nb_positive} positive, {nb_negative} negative and {nb_neutral} neutral. \n\n The overall NPS Score is --> {NPS_Score} \n\n")
+    
+                # Now display detailed results
+                # Detailed comments section (with custom styling)
+                st.markdown("""
+                <div style="background-color: #001f3f; color: white; padding: 10px; border-radius: 10px;">
+                <h2 style="font-size: 22px;"> Detailed Comments Classification (Sample of {})</h2>
+                </div>
+                """.format(max_displayed), unsafe_allow_html=True)
+    
+                for result in results:
+                    st.write("\n")
+                    st.write(result)
+    
+                 st.download_button(
+                    label="Download Results",
+                    data=output_content,
+                    file_name=output_filename,
+                    mime='text/markdown'
+                )
+        else:
+            st.error("Please upload a .md file first.")
 
-                progress_bar.progress((i + 1) / len(blocks))
-
-            NPS_Score = round((nb_positive - nb_negative)/(nb_positive + nb_negative + nb_neutral) * 100)
-
-            nb_total_comments=nb_positive+nb_negative+nb_neutral
-
-            # Display summary FIRST
-            st.success("Analysis complete!")
-            st.write(f"Results Summary: \n\n We had a total of {nb_total_comments} comments in the original file --> {nb_positive} positive, {nb_negative} negative and {nb_neutral} neutral. \n\n The overall NPS Score is --> {NPS_Score} \n\n")
-
-            # Now display detailed results
-            # Detailed comments section (with custom styling)
-            st.markdown("""
-            <div style="background-color: #001f3f; color: white; padding: 10px; border-radius: 10px;">
-            <h2 style="font-size: 22px;"> Detailed Comments Classification (Sample of {})</h2>
-            </div>
-            """.format(max_displayed), unsafe_allow_html=True)
-
-            for result in results:
-                st.write("\n")
-                st.write(result)
-
-            # Save to output file
-            with open(output_filename, "w", encoding="utf-8") as output_f:
-                for block in blocks:
-                    sentiment = classify_sentiment(block) 
-                    output_f.write(f"Comment: {block} -> Sentiment: {sentiment}\n")
-
-                output_f.write(f"\n\nResults Summary: We have {nb_positive} positives comments, {nb_negative} negative comments and {nb_neutral} neutral comments. The overall NPS Score is: {NPS_Score}\n")
 
 if __name__ == '__main__':
     main()
+
+
