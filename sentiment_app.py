@@ -137,7 +137,7 @@ def main():
                     st.write("\n")
                     st.write(result)
     
-                 st.download_button(
+                st.download_button(
                     label="Download Results",
                     data=output_content,
                     file_name=output_filename,
