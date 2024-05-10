@@ -1,3 +1,2 @@
 streamlit==1.33.0
 groq
-os
