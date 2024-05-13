@@ -1,6 +1,6 @@
 streamlit==1.33.0
 groq
 pandas
-googleapiclient.discovery
+google-api-python-client
 time
 os
