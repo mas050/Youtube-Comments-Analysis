@@ -5,8 +5,17 @@ import time
 import os
 from groq import Groq
 
+# --- Secure API Key Input ---
+def initialize_groq_client():
+    """Initializes the Groq client, prioritizing environment variable."""
+    api_key = os.environ.get("GROQ_API_KEY") or st.session_state.get("groq_api_key")
+    if not api_key:
+        raise ValueError("Groq API key not found. Please set either the GROQ_API_KEY environment variable or enter it in the sidebar.")
+    return Groq(api_key=api_key)
+
+
 # --- Helper Functions ---
-def classify_sentiment(comment):
+def classify_sentiment(comment, client):
     """Classifies a comment's sentiment using LLAMA 3"""
     prompt = f"Classify this user comment with one and only one of the following response answer: Positive, Negative, Neutral.  \
         Only output one of the allowed word based on the full context and deep meaning of the comment. Here's the comment to classify: {comment} \
@@ -37,7 +46,7 @@ def classify_sentiment(comment):
     return sentiment
 
 
-def summarize_comments(comments):
+def summarize_comments(comments, client):
     """Summarizes a list of comments using Groq LLM API"""
     prompt = "Summarize the following group of comments written by various viewers: " + ", ".join(comments)
     response = client.chat.completions.create(
@@ -99,6 +108,11 @@ def get_video_comments(youtube, video_id, max_comments, max_retries=5):
 
     return comments[:max_comments]  # Trim comments if exceeding max_comments
 
+
+# Initialize Groq client outside of the main function
+client = None  # Initialize as None to indicate it hasn't been created yet
+
+
 # --- Streamlit App ---
 def main():
     st.set_page_config(page_title="YouTube Comment Analyzer", page_icon=":movie_camera:")
@@ -113,12 +127,16 @@ def main():
     with st.sidebar:
         st.header("Enter Your API Keys")
         youtube_api_key = st.text_input("YouTube API Key:", type="password")
-        groq_api_key = st.text_input("Groq API Key:", type="password")
-        client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+        # Use session state for Groq API key persistence
+        if "groq_api_key" not in st.session_state:
+            st.session_state.groq_api_key = ""
+        st.text_input("Groq API Key:", type="password", key="groq_api_key")
+        #client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
     # Analysis Trigger
     if st.button("Analyze Comments"):
-        if video_url and youtube_api_key and groq_api_key:
+        if video_url and youtube_api_key:
             with st.spinner("Working on it... This may take a few minutes."):
                 try:
                     # 1. Scrape Comments
@@ -132,10 +150,13 @@ def main():
 
                     df = pd.DataFrame(comments, columns=["Comment"])
 
+                    # Initialize Groq client before using it
+                    client = initialize_groq_client()  # Update the global client variable
+
                     # 2. Sentiment Analysis with Progress Bar
                     progress_bar = st.progress(0)  # Ensure progress bar is initialized
                     for i, row in df.iterrows():
-                        df.at[i, "Sentiment"] = classify_sentiment(row["Comment"])
+                        df.at[i, "Sentiment"] = classify_sentiment(row["Comment"], client)
                         if progress_bar:  # Check if progress_bar is not None
                             progress_bar.progress(int((i + 1) / len(df) * 100))
 
@@ -171,7 +192,7 @@ def main():
                     )
 
                     # 7. Summarize Comments
-                    summarized_comments = summarize_comments(df["Comment"].tolist())
+                    summarized_comments = summarize_comments(df["Comment"].tolist(), client)
                     st.write(f"""
                     **Summarized Comments:**
 
@@ -179,9 +200,12 @@ def main():
                     """)
 
                 except Exception as e:
-                    st.error(f"Oops! Something went wrong: {e}")
+                    if "The api_key client option must be set" in str(e):
+                        st.error("Invalid Groq API key. Please check your input or environment variable.")
+                    else:
+                        st.error(f"Oops! Something went wrong: {e}")
         else:
-            st.warning("Please enter a valid YouTube video URL and all API keys.")
+            st.warning("Please enter a valid YouTube video URL and your YouTube API key.")
 
 
 if __name__ == "__main__":
