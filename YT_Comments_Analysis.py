@@ -5,11 +5,6 @@ import time
 import os
 from groq import Groq
 
-# --- Configuration ---
-API_KEY = "AIzaSyBy9sh953p-T_uaSODmHf_vu5VG3EDLqVo"  # st.secrets["YOUTUBE_API_KEY"]
-os.environ["GROQ_API_KEY"] = "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"  # st.secrets["GROQ_API_KEY"]
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-
 # --- Helper Functions ---
 def classify_sentiment(comment):
     """Classifies a comment's sentiment using LLAMA 3"""
@@ -114,13 +109,20 @@ def main():
     max_comments = st.slider("Max comments to fetch:", 1, 100, 10)  # Improved slider for input
     max_displayed = st.slider("Max comments to display:", 1, max_comments, 5)
 
+    # --- Secure API Key Input ---
+    with st.sidebar:
+        st.header("Enter Your API Keys")
+        youtube_api_key = st.text_input("YouTube API Key:", type="password")
+        groq_api_key = st.text_input("Groq API Key:", type="password")
+        client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
     # Analysis Trigger
     if st.button("Analyze Comments"):
-        if video_url:
+        if video_url and youtube_api_key and groq_api_key:
             with st.spinner("Working on it... This may take a few minutes."):
                 try:
                     # 1. Scrape Comments
-                    youtube = build("youtube", "v3", developerKey=API_KEY)
+                    youtube = build("youtube", "v3", developerKey=youtube_api_key)
                     video_id = video_url.split("v=")[-1]
                     comments = get_video_comments(youtube, video_id, max_comments) 
                     
@@ -179,7 +181,7 @@ def main():
                 except Exception as e:
                     st.error(f"Oops! Something went wrong: {e}")
         else:
-            st.warning("Please enter a valid YouTube video URL.")
+            st.warning("Please enter a valid YouTube video URL and all API keys.")
 
 
 if __name__ == "__main__":
